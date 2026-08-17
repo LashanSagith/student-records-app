@@ -62,7 +62,7 @@ function LoginScreen() {
           </div>
           <div className="flex items-start gap-2.5">
             <Cloud size={15} color={THEME.primary} className="mt-0.5 shrink-0" />
-            <span style={{ color: THEME.inkMuted }} className="text-xs">Data is backed up to your own OneDrive automatically.</span>
+            <span style={{ color: THEME.inkMuted }} className="text-xs">Data is saved to the shared Microsoft 365 database automatically.</span>
           </div>
           <div className="flex items-start gap-2.5">
             <History size={15} color={THEME.primary} className="mt-0.5 shrink-0" />

@@ -6,7 +6,7 @@ import {
   Users, GraduationCap, UserX, FileSpreadsheet, SlidersHorizontal, ChevronDown, GripVertical,
   History, Cloud, CloudOff, RefreshCw, AlertCircle, LogOut, User as UserIcon,
 } from "lucide-react";
-import { loadFromOneDrive, saveToOneDrive } from "./graphService";
+import { loadFromSharePoint, saveToSharePoint } from "./graphService";
 
 /* ----------------------------- design tokens ----------------------------- */
 const THEME = {
@@ -313,13 +313,13 @@ function FieldInput({ field, value, onChange }) {
   );
 }
 
-// Small pill in the header showing OneDrive sync state at a glance.
+// Small pill in the header showing shared database sync state at a glance.
 function SyncBadge({ status, lastSyncedAt, onRetry }) {
   const map = {
     idle: { icon: Cloud, text: "Not synced yet", color: THEME.inkMuted },
     pending: { icon: Cloud, text: "Changes pending…", color: THEME.inkMuted },
-    saving: { icon: RefreshCw, text: "Saving to OneDrive…", color: THEME.primary, spin: true },
-    saved: { icon: Cloud, text: lastSyncedAt ? `Saved to OneDrive · ${timeAgo(lastSyncedAt)}` : "Saved to OneDrive", color: THEME.success },
+    saving: { icon: RefreshCw, text: "Saving to shared database…", color: THEME.primary, spin: true },
+    saved: { icon: Cloud, text: lastSyncedAt ? `Saved to shared database · ${timeAgo(lastSyncedAt)}` : "Saved to shared database", color: THEME.success },
     error: { icon: AlertCircle, text: "Couldn't save — click to retry", color: THEME.danger },
   };
   const { icon: Icon, text, color, spin } = map[status] || map.idle;
@@ -327,7 +327,7 @@ function SyncBadge({ status, lastSyncedAt, onRetry }) {
     <button
       type="button"
       onClick={status === "error" ? onRetry : undefined}
-      title={status === "error" ? "Retry saving to OneDrive" : text}
+      title={status === "error" ? "Retry saving to shared database" : text}
       style={{ color, cursor: status === "error" ? "pointer" : "default" }}
       className="flex items-center gap-1.5 text-xs font-medium"
     >
@@ -371,14 +371,14 @@ export default function StudentRecords() {
     toastTimer.current = setTimeout(() => setToast(null), 4500);
   }, []);
 
-  /* ------------------------- load from OneDrive on sign-in ------------------------- */
+  /* ------------------------- load from SharePoint on sign-in ------------------------- */
   useEffect(() => {
     if (!account) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const data = await loadFromOneDrive(instance, account);
+        const data = await loadFromSharePoint(instance, account);
         if (cancelled) return;
         if (data) {
           setStudents(Array.isArray(data.students) ? data.students : []);
@@ -386,14 +386,14 @@ export default function StudentRecords() {
           setLastSyncedAt(data.lastModified ? new Date(data.lastModified) : null);
           setSyncStatus("saved");
         } else {
-          // First time this user has used the app — nothing in OneDrive yet.
+          // First time this user has used the app — nothing in SharePoint yet.
           setStudents([]);
           setAuditLog([]);
           setSyncStatus("idle");
         }
       } catch (e) {
         if (!cancelled) {
-          showToast("Couldn't load your data from OneDrive. Check your connection and refresh.");
+          showToast("Couldn't load the shared database. Check your Microsoft 365 access and refresh.");
           setSyncStatus("error");
         }
       } finally {
@@ -409,7 +409,7 @@ export default function StudentRecords() {
   const auditLogRef = useRef(auditLog);
   useEffect(() => { auditLogRef.current = auditLog; }, [auditLog]);
 
-  /* ------------------------- debounced OneDrive save ------------------------- */
+  /* ------------------------- debounced SharePoint save ------------------------- */
   const pendingRef = useRef(null);
   const saveTimerRef = useRef(null);
 
@@ -418,7 +418,7 @@ export default function StudentRecords() {
     const payload = pendingRef.current;
     setSyncStatus("saving");
     try {
-      await saveToOneDrive(instance, account, {
+      await saveToSharePoint(instance, account, {
         students: payload.students,
         auditLog: payload.auditLog,
         lastModified: new Date().toISOString(),
@@ -429,7 +429,7 @@ export default function StudentRecords() {
       setLastSyncedAt(new Date());
     } catch (e) {
       setSyncStatus("error");
-      showToast("Couldn't save to OneDrive — your changes are kept in this tab, click the sync status to retry.");
+      showToast("Couldn't save to SharePoint — your changes are kept in this tab, click the sync status to retry.");
     }
   }, [instance, account, displayName, showToast]);
 
@@ -440,7 +440,7 @@ export default function StudentRecords() {
     saveTimerRef.current = setTimeout(flushSync, 1200);
   }, [flushSync]);
 
-  // Apply a local change immediately (snappy UI) and queue a OneDrive save.
+  // Apply a local change immediately (snappy UI) and queue a SharePoint save.
   const persist = useCallback((nextStudents, nextAuditLog) => {
     setStudents(nextStudents);
     setAuditLog(nextAuditLog);
@@ -838,7 +838,7 @@ export default function StudentRecords() {
         <div className="flex-1 min-h-0 p-4 md:p-6 flex flex-col">
           {loading || importing ? (
             <div style={{ color: THEME.inkMuted }} className="flex items-center justify-center h-64 text-sm">
-              {importing ? "Importing your file…" : "Loading your data from OneDrive…"}
+              {importing ? "Importing your file…" : "Loading the shared student database…"}
             </div>
           ) : students.length === 0 ? (
             <div style={{ background: THEME.surface, border: `1px dashed ${THEME.borderStrong}` }} className="rounded-xl flex flex-col items-center justify-center text-center py-20 px-6">
