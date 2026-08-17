@@ -12,7 +12,7 @@ import { loadFromOneDrive, saveToOneDrive, saveExcelBackupToOneDrive } from "./g
 const THEME = {
   bg: "#E9EBEE",
   surface: "#FFFFFF",
-  ink: "#333232",
+  ink: "#4D575C",
   inkMuted: "#90949C",
   inkFaint: "#B7BAC0",
   border: "#DADCE0",
