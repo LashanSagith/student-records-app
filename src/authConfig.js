@@ -11,10 +11,10 @@
  */
 
 // Paste the "Application (client) ID" from your App Registration's Overview page.
-export const CLIENT_ID = "PASTE_YOUR_AZURE_APPLICATION_CLIENT_ID_HERE";
+export const CLIENT_ID = "8f3b1254-bc33-44fa-abc9-d40a5d6f6908";
 
 // Paste the "Directory (tenant) ID" from the same page.
-export const TENANT_ID = "PASTE_YOUR_AZURE_TENANT_ID_HERE";
+export const TENANT_ID = "58bcd04b-6ab3-4a9e-93b9-2eb08627c630";
 
 // Must exactly match a "Single-page application" redirect URI you add in
 // Azure Portal → App registration → Authentication. For GitHub Pages this
