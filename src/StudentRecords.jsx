@@ -314,25 +314,25 @@ function FieldInput({ field, value, onChange }) {
 }
 
 // Small pill in the header showing OneDrive sync state at a glance.
-function SyncBadge({ status, lastSyncedAt, onRetry }) {
+function SyncBadge({ status, lastSyncedAt, errorDetail, onRetry }) {
   const map = {
     idle: { icon: Cloud, text: "Not synced yet", color: THEME.inkMuted },
     pending: { icon: Cloud, text: "Changes pending…", color: THEME.inkMuted },
     saving: { icon: RefreshCw, text: "Saving to OneDrive…", color: THEME.primary, spin: true },
     saved: { icon: Cloud, text: lastSyncedAt ? `Saved to OneDrive · ${timeAgo(lastSyncedAt)}` : "Saved to OneDrive", color: THEME.success },
-    error: { icon: AlertCircle, text: "Couldn't save — click to retry", color: THEME.danger },
+    error: { icon: AlertCircle, text: errorDetail ? `Couldn't save: ${errorDetail}` : "Couldn't save — click to retry", color: THEME.danger },
   };
   const { icon: Icon, text, color, spin } = map[status] || map.idle;
   return (
     <button
       type="button"
       onClick={status === "error" ? onRetry : undefined}
-      title={status === "error" ? "Retry saving to OneDrive" : text}
+      title={status === "error" ? `${errorDetail || "Unknown error"} — click to retry` : text}
       style={{ color, cursor: status === "error" ? "pointer" : "default" }}
-      className="flex items-center gap-1.5 text-xs font-medium"
+      className="flex items-center gap-1.5 text-xs font-medium max-w-[320px]"
     >
-      <Icon size={13} className={spin ? "animate-spin" : ""} />
-      <span className="hidden sm:inline">{text}</span>
+      <Icon size={13} className={spin ? "animate-spin shrink-0" : "shrink-0"} />
+      <span className="hidden sm:inline truncate">{text}</span>
     </button>
   );
 }
@@ -362,6 +362,7 @@ export default function StudentRecords() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | saving | saved | error
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [lastSyncError, setLastSyncError] = useState(null);
   const fileInputRef = useRef(null);
   const toastTimer = useRef(null);
 
@@ -385,17 +386,20 @@ export default function StudentRecords() {
           setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
           setLastSyncedAt(data.lastModified ? new Date(data.lastModified) : null);
           setSyncStatus("saved");
+          setLastSyncError(null);
         } else {
           // First time this user has used the app — nothing in OneDrive yet.
           setStudents([]);
           setAuditLog([]);
           setSyncStatus("idle");
+          setLastSyncError(null);
         }
       } catch (e) {
         if (!cancelled) {
           const detail = e?.errorMessage || e?.message || String(e);
           showToast(`Couldn't load your data from OneDrive: ${detail}`);
           setSyncStatus("error");
+          setLastSyncError(detail);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -428,9 +432,11 @@ export default function StudentRecords() {
       pendingRef.current = null;
       setSyncStatus("saved");
       setLastSyncedAt(new Date());
+      setLastSyncError(null);
     } catch (e) {
       setSyncStatus("error");
       const detail = e?.errorMessage || e?.message || String(e);
+      setLastSyncError(detail);
       showToast(`Couldn't save to OneDrive: ${detail}`);
     }
   }, [instance, account, displayName, showToast]);
@@ -753,7 +759,7 @@ export default function StudentRecords() {
               />
             </div>
             <div className="flex items-center gap-3">
-              <SyncBadge status={syncStatus} lastSyncedAt={lastSyncedAt} onRetry={flushSync} />
+              <SyncBadge status={syncStatus} lastSyncedAt={lastSyncedAt} errorDetail={lastSyncError} onRetry={flushSync} />
               <button type="button" onClick={() => setShowFilters((v) => !v)}
                 style={{ border: `1px solid ${THEME.border}`, color: THEME.ink, background: showFilters ? THEME.primarySoft : THEME.surface }}
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg"
