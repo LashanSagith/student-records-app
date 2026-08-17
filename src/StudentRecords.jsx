@@ -6,7 +6,7 @@ import {
   Users, GraduationCap, UserX, FileSpreadsheet, SlidersHorizontal, ChevronDown, GripVertical,
   History, Cloud, CloudOff, RefreshCw, AlertCircle, LogOut, User as UserIcon,
 } from "lucide-react";
-import { loadFromOneDrive, saveToOneDrive } from "./graphService";
+import { loadFromOneDrive, saveToOneDrive, saveExcelBackupToOneDrive } from "./graphService";
 
 /* ----------------------------- design tokens ----------------------------- */
 const THEME = {
@@ -433,6 +433,20 @@ export default function StudentRecords() {
       setSyncStatus("saved");
       setLastSyncedAt(new Date());
       setLastSyncError(null);
+
+      // Best-effort Excel backup — a human-readable copy for OneDrive/Excel
+      // Online. Failures here never block or roll back the main JSON save.
+      try {
+        const header = FIELDS.map((f) => f.label);
+        const rows = payload.students.map((s) => FIELDS.map((f) => s[f.key] || ""));
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Students");
+        const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+        await saveExcelBackupToOneDrive(instance, account, buf);
+      } catch (excelErr) {
+        console.warn("Excel backup skipped:", excelErr);
+      }
     } catch (e) {
       setSyncStatus("error");
       const detail = e?.errorMessage || e?.message || String(e);

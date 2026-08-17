@@ -8,6 +8,8 @@ import { loginRequest } from "./authConfig";
 // normally sees it mixed in with their other files.
 const DATA_FILE_NAME = "student-records-data.json";
 const DATA_FILE_PATH = `/me/drive/special/approot:/${DATA_FILE_NAME}:/content`;
+const EXCEL_FILE_NAME = "student-records-backup.xlsx";
+const EXCEL_FILE_PATH = `/me/drive/special/approot:/${EXCEL_FILE_NAME}:/content`;
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
 /**
@@ -57,6 +59,26 @@ export async function saveToOneDrive(msalInstance, account, data) {
     body: JSON.stringify(data, null, 2),
   });
   if (!res.ok) throw new Error(`OneDrive save failed (${res.status})`);
+  return res.json();
+}
+
+/**
+ * Overwrite the Excel backup file in the user's OneDrive app folder with the
+ * given workbook bytes. This is a best-effort human-readable copy of the
+ * data — the JSON file remains the source of truth, so callers should treat
+ * failures here as non-fatal (e.g. just a quiet toast, not a blocking error).
+ */
+export async function saveExcelBackupToOneDrive(msalInstance, account, workbookArrayBuffer) {
+  const token = await getGraphToken(msalInstance, account);
+  const res = await fetch(`${GRAPH_BASE}${EXCEL_FILE_PATH}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    },
+    body: workbookArrayBuffer,
+  });
+  if (!res.ok) throw new Error(`OneDrive Excel backup failed (${res.status})`);
   return res.json();
 }
 
