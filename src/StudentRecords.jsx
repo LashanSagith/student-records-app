@@ -393,7 +393,8 @@ export default function StudentRecords() {
         }
       } catch (e) {
         if (!cancelled) {
-          showToast("Couldn't load your data from OneDrive. Check your connection and refresh.");
+          const detail = e?.errorMessage || e?.message || String(e);
+          showToast(`Couldn't load your data from OneDrive: ${detail}`);
           setSyncStatus("error");
         }
       } finally {
@@ -429,7 +430,8 @@ export default function StudentRecords() {
       setLastSyncedAt(new Date());
     } catch (e) {
       setSyncStatus("error");
-      showToast("Couldn't save to OneDrive — your changes are kept in this tab, click the sync status to retry.");
+      const detail = e?.errorMessage || e?.message || String(e);
+      showToast(`Couldn't save to OneDrive: ${detail}`);
     }
   }, [instance, account, displayName, showToast]);
 
