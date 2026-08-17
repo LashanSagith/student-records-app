@@ -5,14 +5,14 @@ import { loginRequest } from "./authConfig";
 import StudentRecords from "./StudentRecords";
 
 const THEME = {
-  bg: "#E9EBEE",
+  bg: "#F0F6FF",
   surface: "#FFFFFF",
-  ink: "#616771",
-  inkMuted: "#90949C",
+  ink: "#144FB3",
+  inkMuted: "#97B2E8",
   border: "#DADCE0",
-  primary: "#4267B3",
-  primaryDark: "#35538F",
-  primarySoft: "#E4EAF4",
+  primary: "#3D7DFF",
+  primaryDark: "#083BA1",
+  primarySoft: "#A4BADE",
 };
 
 function LoginScreen() {
