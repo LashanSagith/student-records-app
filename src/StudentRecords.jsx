@@ -52,9 +52,9 @@ const SECTIONS = [
   { id: "programme", label: "Programme" },
   { id: "ol_al", label: "O/L & A/L" },
   { id: "status", label: "Status & Documents" },
-  { id: "withdrawal", label: "Withdrawal" },
   { id: "level_progress", label: "Level 04 & 05" },
   { id: "award_grad", label: "Award & Graduation" },
+  { id: "withdrawal", label: "Withdrawal" },
   { id: "comments", label: "Special Comments" },
 ];
 
@@ -1105,7 +1105,7 @@ export default function StudentRecords() {
                             style={{ color: THEME.primary, border: `1px solid ${THEME.border}` }}
                             className="mt-2 text-[11px] font-semibold px-2.5 py-1 rounded-md hover:bg-gray-50"
                           >
-                            {entry.action === "Deleted" ? "Recover deleted record" : "Recover previous version"}
+                            {entry.action === "Deleted" ? "Recover deleted record" : "Restore"}
                           </button>
                         )}
                       </div>
