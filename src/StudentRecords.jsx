@@ -42,12 +42,17 @@ const HIGHLIGHTS_BY_STATUS = {
 const HIGHLIGHTS = HIGHLIGHTS_BY_STATUS;
 
 /* ----------------------------- data schema ----------------------------- */
+// Graduated Year options: a reasonable range around the current year, newest first.
+const CURRENT_YEAR = new Date().getFullYear();
+const GRAD_YEARS = Array.from({ length: CURRENT_YEAR + 2 - 2015 + 1 }, (_, i) => String(CURRENT_YEAR + 2 - i));
+
 const SECTIONS = [
   { id: "identification", label: "Identification" },
   { id: "contact", label: "Contact & Address" },
   { id: "programme", label: "Programme" },
   { id: "ol_al", label: "O/L & A/L" },
   { id: "status", label: "Status & Documents" },
+  { id: "withdrawal", label: "Withdrawal" },
   { id: "level_progress", label: "Level 04 & 05" },
   { id: "award_grad", label: "Award & Graduation" },
   { id: "comments", label: "Special Comments" },
@@ -72,46 +77,47 @@ const FIELDS = [
   { key: "city", label: "City", section: "contact", subsection: "Address" },
   { key: "postCode", label: "Post Code", section: "contact", subsection: "Address" },
 
-  { key: "career", label: "Career", section: "programme" },
+  { key: "career", label: "Career", section: "programme", type: "select", options: ["Postgraduate", "Undergraduate"] },
   { key: "admitTerm", label: "Admit Term", section: "programme" },
-  { key: "month", label: "Month", section: "programme" },
+  { key: "month", label: "Month", section: "programme", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] },
   { key: "programmeCode", label: "Programme Code", section: "programme", mono: true },
   { key: "planCode", label: "Plan Code", section: "programme", mono: true },
-  { key: "academicLoad", label: "Academic Load", section: "programme", suggestions: ["Full-Time", "Part-Time"] },
-  { key: "nqfLevel", label: "NQF Level", section: "programme" },
-  { key: "international", label: "International?", section: "programme", suggestions: ["Yes", "No"] },
+  { key: "academicLoad", label: "Academic Load", section: "programme", type: "select", options: ["Full-Time", "Part-Time"] },
+  { key: "nqfLevel", label: "NQF Level", section: "programme", type: "select", options: ["Level 5", "Level 6", "Level 7"] },
+  { key: "international", label: "International?", section: "programme", type: "select", options: ["Yes", "No"] },
 
-  { key: "olLocalInternational", label: "Local / International", section: "ol_al", subsection: "O/L Results", suggestions: ["Local", "International"] },
+  { key: "olLocalInternational", label: "Local / International", section: "ol_al", subsection: "O/L Results", type: "select", options: ["Local", "International"] },
   { key: "olMaths", label: "Maths", section: "ol_al", subsection: "O/L Results" },
   { key: "olEnglish", label: "English", section: "ol_al", subsection: "O/L Results" },
-  { key: "alLocalInternational", label: "Local / International", section: "ol_al", subsection: "A/L Results", suggestions: ["Local", "International"] },
+  { key: "alLocalInternational", label: "Local / International", section: "ol_al", subsection: "A/L Results", type: "select", options: ["Local", "International"] },
   { key: "alStream", label: "Stream", section: "ol_al", subsection: "A/L Results" },
   { key: "alResult", label: "Result", section: "ol_al", subsection: "A/L Results" },
 
-  { key: "offerStatus", label: "Offer Status", section: "status", suggestions: ["Offer Issued", "Conditional Offer", "Unconditional Offer", "Pending", "Rejected"] },
-  { key: "classListConfirmation", label: "Class List Confirmation", section: "status", suggestions: ["Confirmed", "Pending"] },
-  { key: "dropReason", label: "Drop (Reason)", section: "status", suggestions: ["Financial", "Academic", "Personal", "Transferred", "Other"] },
-  { key: "withdrawalFormStatus", label: "Withdrawal Form Status", section: "status", suggestions: ["Not Submitted", "Submitted", "Approved"] },
-  { key: "canvasActivationStatus", label: "Canvas Activation Status", section: "status", suggestions: ["Activated", "Pending", "Not Activated"] },
-  { key: "idPhotoUpload", label: "ID Photo Upload", section: "status", suggestions: ["Uploaded", "Pending"] },
-  { key: "ljmuIdCard", label: "LJMU ID Card", section: "status", suggestions: ["Issued", "Pending"] },
+  { key: "offerStatus", label: "Offer Status", section: "status", type: "select", options: ["Unconditional Offer", "Conditional Offer", "Pending", "Rejected"] },
+  { key: "classListConfirmation", label: "Class List Confirmation", section: "status", type: "select", options: ["Confirmed", "Not Confirmed"] },
+  { key: "canvasActivationStatus", label: "Canvas Activation Status", section: "status", type: "select", options: ["Active", "Pending"] },
+  { key: "idPhotoUpload", label: "ID Photo Upload", section: "status", type: "select", options: ["Uploaded", "Not Uploaded"] },
+  { key: "ljmuIdCard", label: "LJMU ID Card", section: "status", type: "select", options: ["Issued", "Not Issued"] },
   { key: "activeStatus", label: "Active Status", section: "status", type: "select", options: ["Active", "Withdrawn", "Dropped", "LOA & Transfer", "FRA", "ESR"] },
+
+  { key: "dropReason", label: "Drop (Reason)", section: "withdrawal", suggestions: ["Financial", "Academic", "Personal", "Transferred", "Other"] },
+  { key: "withdrawalFormStatus", label: "Withdrawal Form Status", section: "withdrawal", suggestions: ["Not Submitted", "Submitted", "Approved"] },
 
   { key: "l4FirstAttempt", label: "L4 - First Attempt", section: "level_progress", subsection: "Level 04" },
   { key: "l4SecondAttempt", label: "L4 - Second Attempt", section: "level_progress", subsection: "Level 04" },
   { key: "l4ThirdAttempt", label: "L4 - Third Attempt", section: "level_progress", subsection: "Level 04" },
   { key: "l4Esr", label: "L4 - ESR", section: "level_progress", subsection: "Level 04" },
-  { key: "level04Status", label: "Level 04 Status", section: "level_progress", subsection: "Level 04", suggestions: ["Pass", "Progressing", "Repeat", "Fail"] },
+  { key: "level04Status", label: "Level 04 Status", section: "level_progress", subsection: "Level 04", type: "select", options: ["Pass", "Fail & Exit", "Progressing", "Repeat"] },
   { key: "l5FirstAttempt", label: "L5 - First Attempt", section: "level_progress", subsection: "Level 05" },
   { key: "l5SecondAttempt", label: "L5 - Second Attempt", section: "level_progress", subsection: "Level 05" },
   { key: "l5ThirdAttempt", label: "L5 - Third Attempt", section: "level_progress", subsection: "Level 05" },
   { key: "l5Esr", label: "L5 - ESR", section: "level_progress", subsection: "Level 05" },
-  { key: "level05Status", label: "Level 05 Status", section: "level_progress", subsection: "Level 05", suggestions: ["Pass", "Progressing", "Repeat", "Fail"] },
+  { key: "level05Status", label: "Level 05 Status", section: "level_progress", subsection: "Level 05", type: "select", options: ["Pass", "Fail & Exit", "Progressing", "Repeat"] },
 
   { key: "award", label: "Award", section: "award_grad", subsection: "Award" },
   { key: "awardMark", label: "Award Mark", section: "award_grad", subsection: "Award" },
-  { key: "graduationEligibility", label: "Graduation Eligibility", section: "award_grad", subsection: "Graduation", suggestions: ["Eligible", "Not Eligible", "Pending"] },
-  { key: "graduatedYear", label: "Graduated Year", section: "award_grad", subsection: "Graduation" },
+  { key: "graduationEligibility", label: "Graduation Eligibility", section: "award_grad", subsection: "Graduation", type: "select", options: ["Eligible", "Not Eligible", "Pending"] },
+  { key: "graduatedYear", label: "Graduated Year", section: "award_grad", subsection: "Graduation", type: "select", options: GRAD_YEARS },
   { key: "certificateReceivedDate", label: "Certificate Received Date", section: "award_grad", subsection: "Graduation", type: "date" },
   { key: "certificateHandedOverDate", label: "Certificate Handed over date to Registry", section: "award_grad", subsection: "Graduation", type: "date" },
 
