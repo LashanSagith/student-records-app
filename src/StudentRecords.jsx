@@ -389,7 +389,7 @@ export default function StudentRecords() {
         if (cancelled) return;
         if (data) {
           setStudents(Array.isArray(data.students) ? data.students : []);
-          setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
+          setAuditLog(pruneAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []));
           setLastSyncedAt(data.lastModified ? new Date(data.lastModified) : null);
           setSyncStatus("saved");
           setLastSyncError(null);
@@ -475,15 +475,23 @@ export default function StudentRecords() {
     scheduleSync(nextStudents, nextAuditLog);
   }, [scheduleSync]);
 
-  function logChange(action, rec, details) {
+  function logChange(action, before, after, details) {
     return {
       id: makeId(),
       timestamp: new Date().toISOString(),
       user: displayName,
       action,
-      recordLabel: recordLabel(rec),
+      recordLabel: recordLabel(after || before),
       details: details || "",
+      before: before ? { ...before } : null,
+      after: after ? { ...after } : null,
     };
+  }
+
+  // Drops audit entries older than 14 days, keeping history storage bounded.
+  function pruneAuditLog(log) {
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    return log.filter((e) => new Date(e.timestamp).getTime() >= cutoff);
   }
 
   const filterOptions = useMemo(() => {
@@ -545,14 +553,15 @@ export default function StudentRecords() {
 
   function handleSave() {
     if (editingId) {
+      const previous = students.find((s) => s.id === editingId);
       const next = students.map((s) => (s.id === editingId ? { ...formData, id: editingId } : s));
-      const nextLog = [logChange("Updated", formData), ...auditLog];
+      const nextLog = pruneAuditLog([logChange("Updated", previous, formData), ...auditLog]);
       persist(next, nextLog);
       showToast("Student record updated.");
     } else {
       const rec = { ...formData };
       const next = [...students, rec];
-      const nextLog = [logChange("Added", rec), ...auditLog];
+      const nextLog = pruneAuditLog([logChange("Added", null, rec), ...auditLog]);
       persist(next, nextLog);
       showToast("Student registered.");
     }
@@ -597,9 +606,26 @@ export default function StudentRecords() {
     if (editingId === id) setDrawerOpen(false);
     const target = studentsRef.current.find((s) => s.id === id);
     const next = studentsRef.current.filter((s) => s.id !== id);
-    const nextLog = [logChange("Deleted", target), ...auditLogRef.current];
+    const nextLog = pruneAuditLog([logChange("Deleted", target, null), ...auditLogRef.current]);
     showToast("Student record deleted.");
     persist(next, nextLog);
+  }
+
+  // Reverses a past Updated or Deleted entry: restores the "before" snapshot
+  // for an edit, or re-adds the record for a delete. Logs a new "Restored"
+  // entry so the recovery itself is also traceable.
+  function recoverEntry(entryId) {
+    const entry = auditLogRef.current.find((e) => e.id === entryId);
+    if (!entry || !entry.before) return;
+    const current = studentsRef.current;
+    const currentState = current.find((s) => s.id === entry.before.id) || null;
+    const next = currentState
+      ? current.map((s) => (s.id === entry.before.id ? { ...entry.before } : s))
+      : [...current, { ...entry.before }];
+    const restoreLabel = entry.action === "Deleted" ? "Restored deleted record" : "Reverted to previous version";
+    const nextLog = pruneAuditLog([logChange("Restored", currentState, entry.before, restoreLabel), ...auditLogRef.current]);
+    persist(next, nextLog);
+    showToast("Record recovered.");
   }
 
   function handleImportClick() {
@@ -1047,7 +1073,7 @@ export default function StudentRecords() {
             <div style={{ borderBottom: `1px solid ${THEME.border}` }} className="px-5 py-4 flex items-center justify-between">
               <div>
                 <div style={{ fontFamily: FONT_DISPLAY }} className="text-base font-semibold flex items-center gap-2"><History size={16} /> Edit History</div>
-                <div style={{ color: THEME.inkFaint }} className="text-xs mt-0.5">Every add, edit and delete, most recent first.</div>
+                <div style={{ color: THEME.inkFaint }} className="text-xs mt-0.5">Every add, edit and delete, most recent first. Kept for 14 days.</div>
               </div>
               <button type="button" onClick={() => setHistoryOpen(false)} style={{ color: THEME.inkMuted }} className="p-1.5 rounded hover:bg-gray-100"><X size={18} /></button>
             </div>
@@ -1060,6 +1086,7 @@ export default function StudentRecords() {
                     const actionColor =
                       entry.action === "Deleted" ? THEME.danger :
                       entry.action === "Added" ? THEME.success :
+                      entry.action === "Restored" ? THEME.primary :
                       THEME.primary;
                     return (
                       <div key={entry.id} style={{ borderBottom: `1px solid ${THEME.border}` }} className="pb-3">
@@ -1071,6 +1098,16 @@ export default function StudentRecords() {
                         <div style={{ color: THEME.inkMuted }} className="text-[11px] mt-0.5">
                           {entry.user}{entry.details ? ` · ${entry.details}` : ""}
                         </div>
+                        {entry.before && entry.action !== "Restored" && (
+                          <button
+                            type="button"
+                            onClick={() => recoverEntry(entry.id)}
+                            style={{ color: THEME.primary, border: `1px solid ${THEME.border}` }}
+                            className="mt-2 text-[11px] font-semibold px-2.5 py-1 rounded-md hover:bg-gray-50"
+                          >
+                            {entry.action === "Deleted" ? "Recover deleted record" : "Recover previous version"}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
