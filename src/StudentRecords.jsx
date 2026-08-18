@@ -956,13 +956,25 @@ export default function StudentRecords() {
           <div className="sr-drawer fixed right-0 top-0 h-full z-50 w-full sm:w-[600px] flex flex-col" style={{ background: THEME.surface, boxShadow: "-8px 0 24px rgba(0,0,0,0.08)" }}>
             <div style={{ borderBottom: `1px solid ${THEME.border}` }} className="px-5 py-4 flex items-center justify-between">
               <div>
-                <div style={{ fontFamily: FONT_DISPLAY }} className="text-base font-semibold">{editingId ? "Edit Student Record" : "New Student Registration"}</div>
                 {editingId && <div style={{ fontFamily: FONT_MONO, color: THEME.inkFaint }} className="text-xs mt-0.5">{formData.applicationRefNo || formData.icbtRegNo || editingId}</div>}
+                {editingId && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5">
+                    {formData.certificationName && (
+                      <span style={{ color: THEME.ink }} className="text-xs font-medium">{formData.certificationName}</span>
+                    )}
+                    {formData.icbtRegNo && (
+                      <span style={{ fontFamily: FONT_MONO, color: THEME.inkMuted }} className="text-xs">ICBT: {formData.icbtRegNo}</span>
+                    )}
+                    {formData.ljmuId && (
+                      <span style={{ fontFamily: FONT_MONO, color: THEME.inkMuted }} className="text-xs">LJMU: {formData.ljmuId}</span>
+                    )}
+                  </div>
+                )}
               </div>
               <button type="button" onClick={closeDrawer} style={{ color: THEME.inkMuted }} className="p-1.5 rounded hover:bg-gray-100"><X size={18} /></button>
             </div>
 
-            <div style={{ borderBottom: `1px solid ${THEME.border}` }} className="px-5 flex gap-1 overflow-x-auto shrink-0">
+            <div style={{ borderBottom: `1px solid ${THEME.border}` }} className="px-5 flex flex-wrap gap-1 shrink-0">
               {SECTIONS.map((sec) => (
                 <button type="button"
                   key={sec.id}
