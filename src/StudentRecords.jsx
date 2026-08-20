@@ -4,9 +4,10 @@ import { useMsal } from "@azure/msal-react";
 import {
   Search, UserPlus, Upload, Download, X, Pencil, Trash2, ChevronRight,
   Users, GraduationCap, UserX, FileSpreadsheet, SlidersHorizontal, ChevronDown, GripVertical,
-  History, Cloud, CloudOff, RefreshCw, AlertCircle, LogOut, User as UserIcon,
+  History, Cloud, CloudOff, RefreshCw, AlertCircle, LogOut, User as UserIcon, FileText,
 } from "lucide-react";
 import { loadFromOneDrive, saveToOneDrive, saveExcelBackupToOneDrive } from "./graphService";
+import { extractPdfText, parseBoEReport, buildUpdatePlan } from "./boeReportParser";
 
 /* ----------------------------- design tokens ----------------------------- */
 const THEME = {
@@ -52,9 +53,9 @@ const SECTIONS = [
   { id: "programme", label: "Programme" },
   { id: "ol_al", label: "O/L & A/L" },
   { id: "status", label: "Status & Documents" },
+  { id: "withdrawal", label: "Withdrawal" },
   { id: "level_progress", label: "Level 04 & 05" },
   { id: "award_grad", label: "Award & Graduation" },
-  { id: "withdrawal", label: "Withdrawal" },
   { id: "comments", label: "Special Comments" },
 ];
 
@@ -365,6 +366,12 @@ export default function StudentRecords() {
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [boeModalOpen, setBoeModalOpen] = useState(false);
+  const [boeParsing, setBoeParsing] = useState(false);
+  const [boePlan, setBoePlan] = useState(null); // { matched, unmatched }
+  const [boeSelections, setBoeSelections] = useState({}); // `${studentId}:level04` -> bool
+  const [boeError, setBoeError] = useState(null);
+  const boeFileInputRef = useRef(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | saving | saved | error
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
@@ -628,6 +635,74 @@ export default function StudentRecords() {
     showToast("Record recovered.");
   }
 
+  function handleBoeFileClick() {
+    boeFileInputRef.current?.click();
+  }
+
+  async function handleBoeFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBoeParsing(true);
+    setBoeError(null);
+    setBoePlan(null);
+    try {
+      const text = await extractPdfText(file);
+      const rows = parseBoEReport(text);
+      if (rows.length === 0) {
+        setBoeError("Couldn't find any student records in this PDF. Make sure it's a Board of Examiners report in the expected format.");
+        return;
+      }
+      const plan = buildUpdatePlan(rows, studentsRef.current);
+      setBoePlan(plan);
+      const selections = {};
+      plan.matched.forEach((m) => {
+        if (m.level04.willChange) selections[`${m.student.id}:level04`] = true;
+        if (m.level05.willChange) selections[`${m.student.id}:level05`] = true;
+      });
+      setBoeSelections(selections);
+    } catch (err) {
+      console.error(err);
+      setBoeError("Couldn't read this PDF. Please check the file and try again.");
+    } finally {
+      setBoeParsing(false);
+      if (boeFileInputRef.current) boeFileInputRef.current.value = "";
+    }
+  }
+
+  function toggleBoeSelection(studentId, levelKey) {
+    setBoeSelections((prev) => ({ ...prev, [`${studentId}:${levelKey}`]: !prev[`${studentId}:${levelKey}`] }));
+  }
+
+  function applyBoeUpdates() {
+    if (!boePlan) return;
+    let next = [...studentsRef.current];
+    const newEntries = [];
+    boePlan.matched.forEach((m) => {
+      const applyL4 = m.level04.willChange && boeSelections[`${m.student.id}:level04`];
+      const applyL5 = m.level05.willChange && boeSelections[`${m.student.id}:level05`];
+      if (!applyL4 && !applyL5) return;
+      const idx = next.findIndex((s) => s.id === m.student.id);
+      if (idx === -1) return;
+      const before = next[idx];
+      const after = { ...before };
+      if (applyL4) after.level04Status = m.level04.to;
+      if (applyL5) after.level05Status = m.level05.to;
+      next[idx] = after;
+      newEntries.push(logChange("Updated", before, after, "Updated from Board of Examiners report"));
+    });
+    if (newEntries.length === 0) {
+      setBoeModalOpen(false);
+      setBoePlan(null);
+      return;
+    }
+    const nextLog = pruneAuditLog([...newEntries, ...auditLogRef.current]);
+    persist(next, nextLog);
+    showToast(`Updated ${newEntries.length} student record${newEntries.length === 1 ? "" : "s"} from exam board report.`);
+    setBoeModalOpen(false);
+    setBoePlan(null);
+    setBoeSelections({});
+  }
+
   function handleImportClick() {
     fileInputRef.current?.click();
   }
@@ -777,6 +852,12 @@ export default function StudentRecords() {
           >
             <Download size={14} /> Export to Excel
           </button>
+          <button type="button" onClick={() => setBoeModalOpen(true)}
+            style={{ border: `1px solid ${THEME.border}`, color: THEME.ink }}
+            className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg hover:bg-gray-50"
+          >
+            <FileText size={14} /> Update from exam board report
+          </button>
           <button type="button" onClick={() => setHistoryOpen(true)}
             style={{ border: `1px solid ${THEME.border}`, color: THEME.ink }}
             className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg hover:bg-gray-50"
@@ -784,6 +865,7 @@ export default function StudentRecords() {
             <History size={14} /> Edit history
           </button>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="hidden" />
+          <input ref={boeFileInputRef} type="file" accept=".pdf" onChange={handleBoeFile} className="hidden" />
           <div style={{ color: THEME.inkFaint }} className="text-[11px] text-center pt-2">Version 1.0</div>
         </div>
       </aside>
@@ -1105,7 +1187,7 @@ export default function StudentRecords() {
                             style={{ color: THEME.primary, border: `1px solid ${THEME.border}` }}
                             className="mt-2 text-[11px] font-semibold px-2.5 py-1 rounded-md hover:bg-gray-50"
                           >
-                            {entry.action === "Deleted" ? "Recover deleted record" : "Restore"}
+                            {entry.action === "Deleted" ? "Recover deleted record" : "Recover previous version"}
                           </button>
                         )}
                       </div>
@@ -1116,6 +1198,115 @@ export default function StudentRecords() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Board of Examiners report import */}
+      {boeModalOpen && (
+        <div
+          onClick={() => { if (!boeParsing) { setBoeModalOpen(false); setBoePlan(null); setBoeError(null); } }}
+          className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+          style={{ background: "rgba(24,34,48,0.45)" }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: THEME.surface }} className="rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${THEME.border}` }}>
+              <div>
+                <div style={{ fontFamily: FONT_DISPLAY }} className="text-base font-semibold flex items-center gap-2"><FileText size={16} /> Update from exam board report</div>
+                <div style={{ color: THEME.inkFaint }} className="text-xs mt-0.5">Upload a Board of Examiners (BoE) PDF report to update Level 04 &amp; 05 status.</div>
+              </div>
+              <button type="button" onClick={() => { setBoeModalOpen(false); setBoePlan(null); setBoeError(null); }} style={{ color: THEME.inkMuted }} className="p-1.5 rounded hover:bg-gray-100"><X size={18} /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {!boePlan && !boeParsing && (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                  <FileText size={32} style={{ color: THEME.inkFaint }} />
+                  <div style={{ color: THEME.inkMuted }} className="text-sm max-w-sm">Select the BoE Report PDF exported from your exam board system. Students are matched by LJMU ID.</div>
+                  <button type="button" onClick={handleBoeFileClick} style={{ background: THEME.primary, color: "#fff" }} className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2.5 rounded-lg mt-2">
+                    <Upload size={14} /> Choose PDF report
+                  </button>
+                  {boeError && <div style={{ color: THEME.danger }} className="text-xs mt-2 max-w-sm">{boeError}</div>}
+                </div>
+              )}
+
+              {boeParsing && (
+                <div className="flex flex-col items-center justify-center py-14 gap-3">
+                  <RefreshCw size={22} style={{ color: THEME.primary }} className="animate-spin" />
+                  <div style={{ color: THEME.inkMuted }} className="text-sm">Reading report…</div>
+                </div>
+              )}
+
+              {boePlan && !boeParsing && (
+                <div className="flex flex-col gap-4">
+                  <div style={{ color: THEME.inkMuted }} className="text-xs">
+                    Found {boePlan.matched.length + boePlan.unmatched.length} student{boePlan.matched.length + boePlan.unmatched.length === 1 ? "" : "s"} in the report.
+                    Only the checked changes below will be applied — nothing updates until you click Apply.
+                  </div>
+
+                  {boePlan.matched.filter((m) => m.level04.willChange || m.level05.willChange).length === 0 && boePlan.matched.filter((m) => m.level04.needsReview || m.level05.needsReview).length === 0 && (
+                    <div style={{ color: THEME.inkFaint }} className="text-xs text-center py-6">No status changes detected — everything already matches this report.</div>
+                  )}
+
+                  {boePlan.matched.map((m) => {
+                    if (!m.level04.willChange && !m.level05.willChange && !m.level04.needsReview && !m.level05.needsReview) return null;
+                    return (
+                      <div key={m.student.id} style={{ border: `1px solid ${THEME.border}` }} className="rounded-lg p-3">
+                        <div className="flex items-baseline justify-between gap-2 mb-2">
+                          <div className="text-xs font-semibold">{m.reportName}</div>
+                          <div style={{ color: THEME.inkFaint, fontFamily: FONT_MONO }} className="text-[11px]">LJMU: {m.student.ljmuId}</div>
+                        </div>
+                        {["level04", "level05"].map((lvl) => {
+                          const d = m[lvl];
+                          const label = lvl === "level04" ? "Level 04" : "Level 05";
+                          if (d.willChange) {
+                            const checked = !!boeSelections[`${m.student.id}:${lvl}`];
+                            return (
+                              <label key={lvl} className="flex items-center gap-2 py-1 cursor-pointer">
+                                <input type="checkbox" checked={checked} onChange={() => toggleBoeSelection(m.student.id, lvl)} />
+                                <span className="text-xs">{label}: </span>
+                                <span style={{ color: THEME.inkMuted }} className="text-xs">{d.from || "—"}</span>
+                                <ChevronRight size={12} style={{ color: THEME.inkFaint }} />
+                                <span style={{ color: THEME.success }} className="text-xs font-semibold">{d.to}</span>
+                                <span style={{ color: THEME.inkFaint }} className="text-[11px] ml-auto">{d.creditAttained} credits, mark {d.mark}</span>
+                              </label>
+                            );
+                          }
+                          if (d.needsReview) {
+                            return (
+                              <div key={lvl} className="flex items-center gap-2 py-1">
+                                <AlertCircle size={13} style={{ color: THEME.warn || "#B8860B" }} />
+                                <span className="text-xs">{label}: needs manual review</span>
+                                <span style={{ color: THEME.inkFaint }} className="text-[11px] ml-auto">{d.creditAttained} credits, mark {d.mark}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  {boePlan.unmatched.length > 0 && (
+                    <div>
+                      <div style={{ color: THEME.inkFaint }} className="text-[11px] font-semibold uppercase tracking-wide mb-1.5">Not matched ({boePlan.unmatched.length})</div>
+                      <div style={{ color: THEME.inkMuted }} className="text-xs flex flex-col gap-1">
+                        {boePlan.unmatched.map((u) => (
+                          <div key={u.ljmuId}>{u.name} — LJMU ID {u.ljmuId} not found in the database</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {boePlan && !boeParsing && (
+              <div className="flex items-center justify-end gap-2 px-5 py-4" style={{ borderTop: `1px solid ${THEME.border}` }}>
+                <button type="button" onClick={() => { setBoeModalOpen(false); setBoePlan(null); }} style={{ border: `1px solid ${THEME.border}`, color: THEME.ink }} className="text-xs font-semibold px-4 py-2 rounded-lg">Cancel</button>
+                <button type="button" onClick={applyBoeUpdates} style={{ background: THEME.primary, color: "#fff" }} className="text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90">Apply selected updates</button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* delete confirmation */}
